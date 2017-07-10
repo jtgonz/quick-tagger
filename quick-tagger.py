@@ -16,7 +16,7 @@ nav_keys = [27]
 def parse_config_file(config):
 
   # set up structures for storing directories, labels, etc.
-  root_dir = os.getcwd()
+  root_dir = os.path.join(os.getcwd(), 'labeled-training-data')
   source_dirs = []
   label_lookup = {}
 
@@ -28,8 +28,9 @@ def parse_config_file(config):
       parsed_line = line.strip().split(' ')
       tag, args = parsed_line[0], parsed_line[1:]
 
-      # skip empty lines
+      # skip empty lines, or comments
       if len(args) < 1: continue
+      if tag[0] == '#': continue
 
       # extract root directory
       elif (tag == 'root' and len(args) == 1):
@@ -50,11 +51,11 @@ def parse_config_file(config):
           return -1
 
         # if everything checks out, add to label lookup dictionary
-        label_lookup[ord(key)] = (label, os.path.join('labeled', target_dir))
+        label_lookup[ord(key)] = (label, target_dir)
 
 
-  # join source directory paths with root directory path
-  source_dirs = [os.path.join(root_dir, i) for i in source_dirs]
+  # join source directory paths with working directory
+  source_dirs = [os.path.join(os.getcwd(), i) for i in source_dirs]
 
   # join target directory paths with root directory path
   for i, v in label_lookup.iteritems():
