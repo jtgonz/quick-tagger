@@ -1,0 +1,17 @@
+output labeled-training-data
+
+source demo-training-data/demo-images
+source demo-training-data/more-demo-images
+
+label j class-one imgs-class-one
+label k class-two imgs-class-two
+label l negative imgs-negative
+
+# ----------------------------------------------------------------
+
+# output: output directory, will be filled with labeled images
+
+# source: directory containing images to be labeled
+#  -- you can list multiple sources, one per line
+
+# label: [keypress] [label for image] [name of destination folder]
