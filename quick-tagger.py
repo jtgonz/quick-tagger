@@ -1,6 +1,7 @@
 import cv2
 import os
 import time
+import itertools
 import numpy as np
 from shutil import copyfile
 
@@ -11,15 +12,6 @@ window_w = 650
 window_h = 650
 
 nav_keys = [27]
-
-# source_dir = mkpath(os.getcwd(), 'demo-images')
-
-# label_lookup = {
-#   ord('j') : ('bottle-bud-light',
-#     mkpath(source_dir, 'labeled/bottle-bud-light')),
-#   ord('k') : ('negative',
-#     mkpath(source_dir, 'labeled/negative')),
-# }
 
 def parse_config_file(config):
 
@@ -47,7 +39,7 @@ def parse_config_file(config):
       elif (tag == 'source' and len(args) == 1):
         source_dirs.append(args[0])
 
-      # add directory to list of source directories
+      # add to label lookup
       elif (tag == 'label' and len(args) == 3):
         key, label, target_dir = args
 
@@ -60,12 +52,17 @@ def parse_config_file(config):
         # if everything checks out, add to label lookup dictionary
         label_lookup[ord(key)] = (label, os.path.join('labeled', target_dir))
 
+
   # join source directory paths with root directory path
-  source_dirs = [os.path.join(os.getcwd(), i) for i in source_dirs]
+  source_dirs = [os.path.join(root_dir, i) for i in source_dirs]
 
   # join target directory paths with root directory path
   for i, v in label_lookup.iteritems():
-    label_lookup[i] = v[0], os.path.join(root_dir, v[1])
+    img_dir = os.path.join(root_dir, v[1])
+    label_lookup[i] = (v[0], img_dir)
+
+    # create directory if it doesn't already exist
+    if not os.path.exists(img_dir): os.makedirs(img_dir)
 
   return root_dir, source_dirs, label_lookup
 
@@ -76,10 +73,6 @@ def parse_config_file(config):
 root_dir, source_dirs, label_lookup = parse_config_file(
   os.path.join(os.getcwd(), 'config.txt'))
 
-
-print root_dir
-
-
 # create dictionary to hold counts for each label
 counts = { v[0]:0 for v in label_lookup.itervalues() }
 
@@ -88,49 +81,49 @@ def valid_img_ext(fname):
   suffixes = ['.bmp', '.jpg', '.jpeg', '.png', '.tif', '.tiff']
   return reduce(lambda x,y: x or y, map(lambda x: fname.endswith(x), suffixes))
 
-# TODO: make this better later, join all source dirs or something
-for source_dir in source_dirs:
-  # get list of all files in source directory, if extension is valid 
-  filenames = [f for f in os.listdir(source_dir) if valid_img_ext(f)]
+# go through source dirs and create list of filenames, if extension is valid
+filenames = list(itertools.chain.from_iterable(
+  [[os.path.join(d, f) for f in os.listdir(d) if valid_img_ext(f)] \
+  for d in source_dirs]))
 
-  for filename in filenames:
-    img_filepath = mkpath(source_dir, filename)
-    img = cv2.imread(img_filepath)
+for filename in filenames:
+  img = cv2.imread(filename)
 
-    # get height and width of image to label, skip if its larger than max size
-    h, w, _ = img.shape
-    if h > window_h - 10 or w > window_w - 10:
-      print "image exceeds bounds, skipping."
-      continue
+  # get height and width of image to label, skip if its larger than max size
+  h, w, _ = img.shape
+  if h > window_h - 10 or w > window_w - 10:
+    print "image exceeds bounds, skipping."
+    continue
 
-    # create empty frame (all zeros) and center image within frame
-    frame = np.zeros((window_w, window_h, 3), np.uint8)
-    top, left = (window_h/2 - h/2, window_w/2 - w/2) # top left corner img
-    frame[top:top+h, left:left+w] = img
+  # create empty frame (all zeros) and center image within frame
+  frame = np.zeros((window_w, window_h, 3), np.uint8)
+  top, left = (window_h/2 - h/2, window_w/2 - w/2) # top left corner img
+  frame[top:top+h, left:left+w] = img
 
-    cv2.imshow('quick-tagger', frame)
+  cv2.imshow('quick-tagger', frame)
 
-    # wait for a keypress (muust be either a label or a nav key)
-    key = None
-    while (key not in label_lookup) and (key not in nav_keys):
-      key = cv2.waitKey(0)
+  # wait for a keypress (muust be either a label or a nav key)
+  key = None
+  while (key not in label_lookup) and (key not in nav_keys):
+    key = cv2.waitKey(0)
 
-    # if user pressed ESC or something, this is where we'll respond to that
-    if key in nav_keys:
-      print "goodbye!"
-      break
+  # if user pressed ESC or something, this is where we'll respond to that
+  if key in nav_keys:
+    print "goodbye!"
+    break
 
-    label, target_dir = label_lookup[key]
+  label, target_dir = label_lookup[key]
 
-    # add a label to the image (just for user to see)
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(frame, label, (10,50), font, 1, (255,255,255), 2)
-    cv2.imshow('quick-tagger', frame)
-    cv2.waitKey(500)
+  # add a label to the image (just for user to see)
+  font = cv2.FONT_HERSHEY_SIMPLEX
+  cv2.putText(frame, label, (10,50), font, 1, (255,255,255), 2)
+  cv2.imshow('quick-tagger', frame)
+  cv2.waitKey(500)
 
-    # move file into appropriate directory, increment count
-    copyfile(img_filepath, mkpath(target_dir, filename))
-    counts[label] += 1
+  # move file into appropriate directory, increment count
+  copyfile(filename, mkpath(target_dir, os.path.basename(filename)))
+  counts[label] += 1
 
 cv2.destroyWindow('quick-tagger')
+print counts
 print "all done!"
